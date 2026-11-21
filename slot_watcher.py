@@ -78,15 +78,18 @@ def fetch_open_slots() -> list[dict]:
         browser.close()
 
     if not any(d[5:] in headers for d in TARGET_DATES):
-        raise RuntimeError(f"対象週を表示できませんでした: {headers}")
+        raise RuntimeError("対象週を表示できませんでした")  # 公開ログに日付を出さない
     return slots
 
 
-def notify(title: str, message: str, click_url: str | None = None) -> None:
-    headers = {"Title": title.encode("utf-8"), "Priority": "high", "Tags": "calendar"}
+def notify(title: str, message: str, click_url: str | None = None, buttons: list[tuple[str, str]] | None = None) -> None:
+    """ntfy に JSON で送る。buttons は (ラベル, URL) のリスト（最大3つ）。通知をタップすると click_url が開く。"""
+    payload = {"topic": NTFY_TOPIC, "title": title, "message": message, "priority": 5, "tags": ["calendar"]}
     if click_url:
-        headers["Click"] = click_url
-    requests.post(f"https://ntfy.sh/{NTFY_TOPIC}", data=message.encode("utf-8"), headers=headers, timeout=15)
+        payload["click"] = click_url
+    if buttons:
+        payload["actions"] = [{"action": "view", "label": label, "url": url} for label, url in buttons[:3]]
+    requests.post("https://ntfy.sh/", json=payload, timeout=15).raise_for_status()
 
 
 def check_once() -> None:
@@ -103,16 +106,34 @@ def check_once() -> None:
         return
 
     lines = [f"{s['date'][5:]} {s['time']}（残{s['stock']}）" for s in new]
-    print(f"[{now}] 空きあり: {', '.join(lines)}")
+    print(f"[{now}] 空きあり: {len(new)}枠")  # 公開ログには日付を出さない
+    # ボタン: 空き枠の予約ページ（最大2つ）＋カレンダー。通知本体のタップは最初の空き枠へ
+    buttons = [(f"{s['date'][5:]} {s['time']} を予約", s["url"]) for s in new[:2]]
+    buttons.append(("カレンダーを開く", CALENDAR_URL))
     notify(
         "総領事館の予約に空き",
-        "警察証明の申請枠が空きました\n" + "\n".join(lines) + "\nタップして予約ページを開く",
-        click_url=CALENDAR_URL,
+        "警察証明の申請枠が空きました\n" + "\n".join(lines),
+        click_url=new[0]["url"],
+        buttons=buttons,
     )
     _already_notified.update(f"{s['date']} {s['time']}" for s in new)
 
 
+def send_test() -> None:
+    """表示確認用のテスト通知（実際の空きではない）。リンクはカレンダーを開く。"""
+    notify(
+        "【テスト】総領事館の予約に空き",
+        "表示確認用のテストです（実際の空きではありません）",
+        click_url=CALENDAR_URL,
+        buttons=[("（例）枠を予約", CALENDAR_URL), ("カレンダーを開く", CALENDAR_URL)],
+    )
+    print("テスト通知を送信しました")
+
+
 def main() -> None:
+    if "--test" in sys.argv:
+        send_test()
+        return
     if "--once" in sys.argv:
         if datetime.now(TZ) >= STOP_AFTER:
             print("対象日を過ぎたので何もしません")
