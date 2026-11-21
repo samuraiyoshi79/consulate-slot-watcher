@@ -4,7 +4,7 @@
 
 ## 使い方
 - 通知先のトピック名は `NTFY_TOPIC`、対象日は `TARGET_DATES`（例: `2026/01/01,2026/01/02`）で渡す（GitHub Actions では Secret）
-- GitHub Actions で定期実行する（`.github/workflows/watch.yml`）
+- GitHub Actions で定期実行する場合は、`disabled/watch.yml` を `.github/workflows/` に戻す（今は停止中）
 - ローカルで動かす場合:
 
 ```
