@@ -1,0 +1,22 @@
+name: Consulate slot watcher
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"   # 15分ごと（GitHub側の混雑で数分遅れることがある）
+  workflow_dispatch:          # Actions タブから手動実行もできる
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install playwright requests
+      - run: playwright install --with-deps chromium
+      - run: python slot_watcher.py --once
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          TARGET_DATES: ${{ secrets.TARGET_DATES }}
